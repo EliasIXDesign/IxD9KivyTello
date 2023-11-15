@@ -12,7 +12,7 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.behaviors import CoverBehavior
 from kivy.uix.video import Video
 from kivy.core.video import VideoBase
-from tellopy import Tello
+from djitellopy import Tello
 from threading import Thread
 from flask import Response, request
 from perfume import route, Perfume
@@ -29,41 +29,50 @@ class FlaskApp(Perfume):
 
         def generate():
             try:
+                self.drone.streamon()
+
                 retry = 3
-                container = None
-                while container is None and 0 < retry:
+                cap = self.drone.get_video_capture()
+                while cap is None and 0 < retry:
                     retry -= 1
-                    try:
-                        container = av.open(self.drone.get_video_stream())
-                    except av.AVError as ave:
-                        print(ave)
-                        print('retry...')
+                    print('retry...')
+                    time.sleep(1)
+                    cap = self.drone.get_video_capture()
 
                 frame_skip = 300
                 while True:
-                    for frame in container.decode(video=0):
-                        if 0 < frame_skip:
-                            frame_skip = frame_skip - 1
-                            continue
-                        start_time = time.time()
-                        image = numpy.array(frame.to_image())
-                        color = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                        ret, jpeg = cv2.imencode('.jpg', color)
-                        yield (b'--frame\r\n'
-                               b'Content-Type: image/jpeg\r\n\r\n' +
-                               jpeg.tobytes() +
-                               b'\r\n\r\n')
-                        if frame.time_base < 1.0 / 60:
-                            time_base = 1.0 / 60
-                        else:
-                            time_base = frame.time_base
-                        frame_skip = int((time.time() - start_time) / time_base)
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    if 0 < frame_skip:
+                        frame_skip -= 1
+                        continue
+
+                    start_time = time.time()
+                    color = frame
+                    # color = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    ret, jpeg = cv2.imencode('.jpg', color)
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' +
+                           jpeg.tobytes() +
+                           b'\r\n\r\n')
+
+                    if cap.get(cv2.CAP_PROP_FPS) < 1.0 / 30:
+                        time_base = 1.0 / 30
+                    else:
+                        time_base = 1.0 / cap.get(cv2.CAP_PROP_FPS)
+
+                    frame_skip = int((time.time() - start_time) / time_base)
+
             except Exception as ex:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 traceback.print_exception(exc_type, exc_value, exc_traceback)
                 print(ex)
+
             finally:
-                self.drone.quit()
+                # self.drone.streamoff()
+                self.drone.end()
                 App.get_running_app().stop()
 
         return Response(generate(),
@@ -157,7 +166,7 @@ class KivyTelloRoot(FloatLayout):
         self.drone.set_pitch(self.stick_data[IDX_PITCH])
 
     def stop(self):
-        self.drone.quit()
+        self.drone.end()
         App.get_running_app().stop()
 
 
@@ -181,7 +190,7 @@ if __name__ in ('__main__', '__android__'):
     drone = Tello()
     try:
         drone.connect()
-        drone.wait_for_connection(60.0)
+        # drone.wait_for_connection(60.0)
         flask_app = FlaskApp(drone=drone)
         t = Thread(target=start_flask_app, args=(flask_app,))
         t.daemon = True
@@ -189,5 +198,6 @@ if __name__ in ('__main__', '__android__'):
         KivyTelloApp(drone=drone, flask_app=flask_app).run()
     except Exception as ex:
         print(ex)
-        drone.quit()
+        self.drone.streamoff()
+        drone.end()
         Window.close()

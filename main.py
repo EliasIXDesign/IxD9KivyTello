@@ -85,12 +85,6 @@ def start_flask_app(flask_app=None):
                   use_reloader=False, threaded=True)
 
 
-IDX_ROLL = 0
-IDX_PITCH = 1
-IDX_THR = 2
-IDX_YAW = 3
-
-
 class CoverVideo(CoverBehavior, Video):
     def _on_video_frame(self, *largs):
         video = self._video
@@ -105,24 +99,12 @@ class CoverVideo(CoverBehavior, Video):
         self.canvas.ask_update()
 
 
-class DragableJoystick(Joystick):
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            self.pos = touch.x - self.width / 2, touch.y - self.height / 2
-            return super(DragableJoystick, self).on_touch_down(touch)
-
-
 class KivyTelloRoot(FloatLayout):
-
     def __init__(self, drone=None, flask_app=None, **kwargs):
         super(KivyTelloRoot, self).__init__(**kwargs)
-        self.stick_data = [0.0] * 4
+        # self.stick_data = [0.0] * 4
         Window.allow_vkeyboard = False
-        self.ids.pad_left.ids.stick.bind(pad=self.on_pad_left)
-        self.ids.pad_right.ids.stick.bind(pad=self.on_pad_right)
         self.ids.takeoff.bind(state=self.on_state_takeoff)
-        self.ids.rotcw.bind(state=self.on_state_rotcw)
-        self.ids.rotccw.bind(state=self.on_state_rotccw)
         self.ids.quit.bind(on_press=lambda x: self.stop())
         self.drone = drone
         self.flask_app = flask_app
@@ -135,40 +117,6 @@ class KivyTelloRoot(FloatLayout):
             print('land')
             self.drone.land()
 
-    def on_state_rotcw(self, instance, value):
-        if value == 'down':
-            print('start cw')
-            self.drone.clockwise(50)
-        else:
-            print('stop cw')
-            self.drone.clockwise(0)
-
-    def on_state_rotccw(self, instance, value):
-        if value == 'down':
-            print('start ccw')
-            self.drone.counter_clockwise(50)
-        else:
-            print('stop ccw')
-            self.drone.counter_clockwise(0)
-
-    def on_pad_left(self, instance, value):
-        x, y = value
-        self.stick_data[IDX_YAW] = x
-        self.stick_data[IDX_THR] = y
-        self.drone.set_throttle(self.stick_data[IDX_THR])
-        self.drone.set_yaw(self.stick_data[IDX_YAW])
-
-    def on_pad_right(self, instance, value):
-        x, y = value
-        self.stick_data[IDX_ROLL] = x
-        self.stick_data[IDX_PITCH] = y
-        self.drone.set_roll(self.stick_data[IDX_ROLL])
-        self.drone.set_pitch(self.stick_data[IDX_PITCH])
-
-    def stop(self):
-        self.drone.end()
-        App.get_running_app().stop()
-
 
 class KivyTelloApp(App):
     def __init__(self, drone=None, flask_app=None, **kwargs):
@@ -177,6 +125,15 @@ class KivyTelloApp(App):
         self.flask_app = flask_app
 
     def build(self):
+        # Example usage:
+        initial_button_texts = ["Dragon", "Fire", "Cops and Robbers"]
+        MainScreen(mission_callback, initial_button_texts, name="main")
+
+        sm = ScreenManager()
+        sm.add_widget(MainScreen)
+
+        for i in range(1, 3):
+            sm.add_widget(MissionScreen(i, self.mission_callback, name=f"mission{i}"))
         return KivyTelloRoot(drone=self.drone, flask_app=self.flask_app)
 
     def on_pause(self):
@@ -184,6 +141,57 @@ class KivyTelloApp(App):
 
     def on_stop(self):
         Window.close()
+
+
+class MissionScreen(Screen):
+    def __init__(self, mission_number, mission_callback, **kwargs):
+        super(MissionScreen, self).__init__(**kwargs)
+        self.mission_number = mission_number
+        self.mission_callback = mission_callback
+
+    def on_enter(self, *args):
+        self.show_mission()
+
+    def show_mission(self):
+        mission_successful = self.mission_callback(self.mission_number)
+        video_path = "successful_mission.mp4" if mission_successful else "failed_mission.mp4"
+
+        # Create CoverVideo dynamically
+        cover_video = CoverVideo(source='http://127.0.0.1:30660/video_feed', state='play', options={'eos': 'loop'})
+        self.add_widget(cover_video)
+
+        Clock.schedule_once(self.return_to_main_screen, 5)
+
+    def return_to_main_screen(self, dt):
+        self.manager.current = "main"
+
+
+class MainScreen(Screen):
+    def __init__(self, mission_callback, initial_button_texts, **kwargs):
+        super(MainScreen, self).__init__(**kwargs)
+        self.mission_callback = mission_callback
+        self.create_buttons(initial_button_texts)
+
+    def create_buttons(self, button_texts):
+        for text in button_texts:
+            button = Button(text=text, on_press=self.start_mission)
+            self.add_widget(button)
+
+    def start_mission(self, instance):
+        mission_number = int(instance.text.split()[1])
+        self.manager.current = f"mission{mission_number}"
+
+    def on_enter(self, *args):
+        Clock.schedule_once(self.show_new_button, 2)
+
+    def show_new_button(self, dt):
+        self.clear_widgets()
+        new_button = Button(text="New Mission", on_press=self.create_buttons)
+        self.add_widget(new_button)
+
+
+
+
 
 
 if __name__ in ('__main__', '__android__'):

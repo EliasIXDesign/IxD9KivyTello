@@ -1,24 +1,8 @@
 <Button,ToggleButton>:
     background_color: 0.0, 0.0, 0.0, 0.2
 
-<CoverVideo>
+<CoverVideo>:
+    source: 'http://127.0.0.1:30660/video_feed'
+    state: 'play'
+    options: {'eos': 'loop'}
 
-<KivyTelloRoot>:
-    CoverVideo:
-        source: 'http://127.0.0.1:30660/video_feed'
-        state: 'play'
-        #allow_stretch: True
-        options: {'eos': 'loop'}
-    BoxLayout:
-        orientation: 'vertical'
-        BoxLayout:
-            size_hint: 1, 0.1
-            orientation: 'horizontal'
-            Button:
-                id: quit
-                text: 'QUIT'
-            ToggleButton:
-                id: takeoff
-                text: 'TAKEOFF' if self.state == 'normal' else 'LAND'
-
-# KivyTelloRoot:

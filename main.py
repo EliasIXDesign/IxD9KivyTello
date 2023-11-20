@@ -147,6 +147,9 @@ class KivyTelloRoot(FloatLayout):
 class KivyTelloApp(App):
     def __init__(self, drone=None, flask_app=None, **kwargs):
         super(KivyTelloApp, self).__init__(**kwargs)
+        self.sm = None
+        self.main_screen = None
+        self.mission_screen = None
         self.drone = drone
         self.flask_app = flask_app
         Builder.load_file('kivytello.kv')
@@ -155,15 +158,15 @@ class KivyTelloApp(App):
         return KivyTelloRoot(drone=self.drone, flask_app=self.flask_app)
 
     def build(self):
-        sm = ScreenManager()
+        self.sm = ScreenManager()
+        self.main_screen = MainScreen()
+        self.mission_screen = MissionScreen(drone=self.drone)
 
-        sm.add_widget(MainScreen(name='main'))
+        # Add screens to the ScreenManager
+        self.sm.add_widget(self.main_screen)
+        self.sm.add_widget(self.mission_screen)
 
-        sm.add_widget(MissionScreen(name='mission'))
-
-        self.sm = sm
-
-        return sm
+        return self.sm
 
     def on_pause(self):
         return True
@@ -185,6 +188,7 @@ class MainScreen(Screen):
 class MissionScreen(Screen):
     def __init__(self, drone=None, **kwargs):
         super(MissionScreen, self).__init__(**kwargs)
+        self.mission_number = None
         self.name = 'mission'
         # self.add_widget(Button(text='Return', on_release=self.stop_mission))
         self.stick_data = [0.0] * 4
@@ -200,8 +204,6 @@ class MissionScreen(Screen):
         print("available ids in PadRight", self.ids)
         self.ids.pad_right.bind(pad=self.on_pad_right)
         self.ids.takeoff.bind(state=self.on_state_takeoff)
-        self.ids.rotcw.bind(state=self.on_state_rotcw)
-        self.ids.rotccw.bind(state=self.on_state_rotccw)
         self.ids.quit.bind(on_press=lambda x: self.stop())
 
     def on_enter(self, *args):
@@ -214,22 +216,6 @@ class MissionScreen(Screen):
         else:
             print('land')
             self.drone.land()
-
-    def on_state_rotcw(self, instance, value):
-        if value == 'down':
-            print('start cw')
-            self.drone.clockwise(50)
-        else:
-            print('stop cw')
-            self.drone.clockwise(0)
-
-    def on_state_rotccw(self, instance, value):
-        if value == 'down':
-            print('start ccw')
-            self.drone.counter_clockwise(50)
-        else:
-            print('stop ccw')
-            self.drone.counter_clockwise(0)
 
     def on_pad_left(self, instance, value):
         x, y = value
@@ -251,6 +237,47 @@ class MissionScreen(Screen):
     def stop(self):
         self.drone.end()
         App.get_running_app().stop()
+
+    def start_mission(self, mission_number):
+        self.mission_number = mission_number
+        self.setup_mission()
+
+    def setup_mission(self):
+        if self.mission_number == 1:
+            self.setup_mission1()
+        elif self.mission_number == 2:
+            self.setup_mission2()
+        elif self.mission_number == 3:
+            self.setup_mission3()
+        elif self.mission_number == 4:
+            self.setup_mission4()
+
+    def setup_mission1(self):
+        print("Mission 1 triggered good")
+        # Set up Mission 1 buttons
+        # For example, you can create ToggleButtons or other widgets here
+
+        # Schedule the transition to the next set of buttons after 5 seconds
+        Clock.schedule_once(self.setup_mission2, 5)
+
+    def setup_mission2(self, dt=None):
+        print("Mission 2 triggered good")
+        # Schedule the transition to the next set of buttons after 5 seconds
+        Clock.schedule_once(self.setup_mission3, 5)
+
+    def setup_mission3(self, dt=None):
+        print("Mission 3 triggered good")
+        # Schedule the transition to the next set of buttons after 5 seconds
+        Clock.schedule_once(self.setup_mission4, 5)
+
+    def setup_mission4(self, dt=None):
+        print("Mission 4 triggered good")
+        # Schedule the transition to the next set of buttons after 5 seconds
+        Clock.schedule_once(self.finish_mission, 5)
+
+    def finish_mission(self, dt=None):
+        # Perform any cleanup or finalization for the mission
+        self.manager.current = 'main'
 
 
 if __name__ in ('__main__', '__android__'):

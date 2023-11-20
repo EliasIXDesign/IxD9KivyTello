@@ -11,24 +11,24 @@
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        spacing: 10  # Vertical spacing between buttons
+        spacing: 20  # Vertical spacing between buttons
         padding: 30  # Padding around the BoxLayout
 
         Button:
             text: 'Mission 1'
-            on_release: app.sm.current = 'mission'
+            on_release: app.sm.current = 'mission'; app.mission_screen.start_mission(1)
             height: "30dp"
         Button:
             text: 'Mission 2'
-            on_release: root.start_mission
+            on_release: app.sm.current = 'mission'; app.mission_screen.start_mission(2)
             height: "30dp"
         Button:
             text: 'Mission 3'
-            on_release: root.start_mission
+            on_release: app.sm.current = 'mission'; app.mission_screen.start_mission(3)
             height: "30dp"
         Button:
             text: 'Mission 4'
-            on_release: root.start_mission
+            on_release: app.sm.current = 'mission'; app.mission_screen.start_mission(1)
             height: "30dp"
 
 <MissionScreen>:
@@ -40,39 +40,29 @@
             text: 'Video here'
             size_hint: 1, 1  # Cover the entire FloatLayout
             pos_hint: {'center_x': 0.5, 'center_y': 0.5}  # Center the video
-
         BoxLayout:
-            size_hint: 1, None
+            size_hint: 1, 0.1
             height: dp(100)  # Adjust the height as needed
             orientation: 'horizontal'
-            pos_hint: {'top': 1}  # Align to the top of the FloatLayout
+            pos_hint: {'bottom': 1}  # Align to the top of the FloatLayout
             Joystick:
                 id: pad_left
             Joystick:
                 id: pad_right
-
         BoxLayout:
             size_hint: 1, None
             height: dp(50)  # Adjust the height as needed
             orientation: 'horizontal'
-            pos_hint: {'bottom': 1}  # Align to the bottom of the FloatLayout
+            pos_hint: {'top': 1}  # Align to the bottom of the FloatLayout
             Button:
+                id: return
+                text: 'Return'
+                on_release: app.sm.current = 'main'
+            ToggleButton:
                 id: takeoff
-                text: 'Takeoff/Land'
-            Button:
-                id: rotcw
-                text: 'Rotate CW'
-            Button:
-                id: rotccw
-                text: 'Rotate CCW'
+                text: 'TAKEOFF' if self.state == 'normal' else 'LAND'
+                on_release: root.takeoff()  # Toggle the drone's takeoff/land
             Button:
                 id: quit
                 text: 'Quit'
-
-        Button:
-            text: 'Return'
-            size_hint: None, None
-            size: dp(100), dp(50)  # Adjust the size as needed
-            pos_hint: {'center_x': 0.5, 'bottom': 0.1}  # Adjust the position as needed
-            on_release: app.root.sm.current = 'main'
 

@@ -12,10 +12,15 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.behaviors import CoverBehavior
 from kivy.uix.video import Video
 from kivy.core.video import VideoBase
+from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.button import Button
+from kivy.clock import Clock
+from kivy.lang import Builder
 from djitellopy import Tello
 from threading import Thread
 from flask import Response, request
 from perfume import route, Perfume
+# IS_STREAM_ON = False
 
 
 class FlaskApp(Perfume):
@@ -92,6 +97,15 @@ IDX_YAW = 3
 
 
 class CoverVideo(CoverBehavior, Video):
+    def __init__(self, drone=None, **kwargs):
+        super(CoverVideo, self).__init__(**kwargs)
+        self.drone = drone
+
+    def start_video(self):
+        # start the video feed here
+        self.source = 'http://127.0.0.1:30660/video_feed'
+        self.play = True
+
     def _on_video_frame(self, *largs):
         video = self._video
         if not video:
@@ -113,19 +127,87 @@ class DragableJoystick(Joystick):
 
 
 class KivyTelloRoot(FloatLayout):
-
     def __init__(self, drone=None, flask_app=None, **kwargs):
         super(KivyTelloRoot, self).__init__(**kwargs)
+        self.drone = drone
+        self.flask_app = flask_app
+        self.sm = ScreenManager()
+        self.sm.add_widget(MainScreen())
+        self.sm.add_widget(MissionScreen(drone=self.drone))
+        self.add_widget(self.sm)
+
+    def stop(self):
+        self.drone.end()
+        App.get_running_app().stop()
+
+
+class KivyTelloApp(App):
+    def __init__(self, drone=None, flask_app=None, **kwargs):
+        super(KivyTelloApp, self).__init__(**kwargs)
+        self.drone = drone
+        self.flask_app = flask_app
+        Builder.load_file('kivytello.kv')
+
+    def build_config(self, config):
+        return KivyTelloRoot(drone=self.drone, flask_app=self.flask_app)
+
+    def build(self):
+        sm = ScreenManager()
+
+        sm.add_widget(MainScreen(name='main'))
+
+        sm.add_widget(MissionScreen(name='mission'))
+
+        return sm
+
+    def on_pause(self):
+        return True
+
+    def on_stop(self):
+        Window.close()
+
+
+class MainScreen(Screen):
+    def __init__(self, **kwargs):
+        super(MainScreen, self).__init__(**kwargs)
+        self.name = 'main'
+        self.drone = drone
+        self.add_widget(Button(text='Mission 1', on_release=self.start_mission))
+        self.add_widget(Button(text='Mission 2', on_release=self.start_mission))
+        self.add_widget(Button(text='Mission 3', on_release=self.start_mission))
+        self.add_widget(Button(text='Mission 4', on_release=self.start_mission))
+
+    def start_mission(self, instance):
+        self.manager.current = 'mission'
+
+    def on_enter(self, *args):
+        self.drone.streamon()
+
+
+class MissionScreen(Screen):
+    def __init__(self, drone=None, **kwargs):
+        super(MissionScreen, self).__init__(**kwargs)
+        self.name = 'mission'
+        self.add_widget(Button(text='Return', on_release=self.stop_mission))
         self.stick_data = [0.0] * 4
-        Window.allow_vkeyboard = False
-        self.ids.pad_left.ids.stick.bind(pad=self.on_pad_left)
-        self.ids.pad_right.ids.stick.bind(pad=self.on_pad_right)
+        self.drone = drone
+        Clock.schedule_once(self._finish_init, 5)
+
+    def _finish_init(self, dt):
+        print("available ids in MissionScreen", self.ids)
+        self.video = self.ids.video
+        # self.video.start_video()
+        print("available ids in Pad_left", self.ids)
+        self.ids.pad_left.bind(pad=self.on_pad_left)
+        print("available ids in PadRight", self.ids)
+        self.ids.pad_right.bind(pad=self.on_pad_right)
         self.ids.takeoff.bind(state=self.on_state_takeoff)
         self.ids.rotcw.bind(state=self.on_state_rotcw)
         self.ids.rotccw.bind(state=self.on_state_rotccw)
         self.ids.quit.bind(on_press=lambda x: self.stop())
-        self.drone = drone
-        self.flask_app = flask_app
+
+    def on_enter(self, *args):
+        self.video.start_video()
 
     def on_state_takeoff(self, instance, value):
         if value == 'down':
@@ -165,25 +247,12 @@ class KivyTelloRoot(FloatLayout):
         self.drone.set_roll(self.stick_data[IDX_ROLL])
         self.drone.set_pitch(self.stick_data[IDX_PITCH])
 
+    def stop_mission(self, instance):
+        self.manager.current = 'main'
+
     def stop(self):
         self.drone.end()
         App.get_running_app().stop()
-
-
-class KivyTelloApp(App):
-    def __init__(self, drone=None, flask_app=None, **kwargs):
-        super(KivyTelloApp, self).__init__(**kwargs)
-        self.drone = drone
-        self.flask_app = flask_app
-
-    def build(self):
-        return KivyTelloRoot(drone=self.drone, flask_app=self.flask_app)
-
-    def on_pause(self):
-        return True
-
-    def on_stop(self):
-        Window.close()
 
 
 if __name__ in ('__main__', '__android__'):
@@ -197,7 +266,7 @@ if __name__ in ('__main__', '__android__'):
         t.start()
         KivyTelloApp(drone=drone, flask_app=flask_app).run()
     except Exception as ex:
-        print(ex)
-        self.drone.streamoff()
+        print(traceback.format_exc())
+        # drone.streamoff()
         drone.end()
         Window.close()

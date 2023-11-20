@@ -104,7 +104,10 @@ class CoverVideo(CoverBehavior, Video):
     def start_video(self):
         # start the video feed here
         self.source = 'http://127.0.0.1:30660/video_feed'
-        self.play = True
+        print(f'self.source: {self.source}')
+        self.options = {'eos': 'loop'}
+        self.state = 'play'
+        print("Video started")
 
     def _on_video_frame(self, *largs):
         video = self._video
@@ -158,6 +161,8 @@ class KivyTelloApp(App):
 
         sm.add_widget(MissionScreen(name='mission'))
 
+        self.sm = sm
+
         return sm
 
     def on_pause(self):
@@ -172,23 +177,16 @@ class MainScreen(Screen):
         super(MainScreen, self).__init__(**kwargs)
         self.name = 'main'
         self.drone = drone
-        self.add_widget(Button(text='Mission 1', on_release=self.start_mission))
-        self.add_widget(Button(text='Mission 2', on_release=self.start_mission))
-        self.add_widget(Button(text='Mission 3', on_release=self.start_mission))
-        self.add_widget(Button(text='Mission 4', on_release=self.start_mission))
 
     def start_mission(self, instance):
         self.manager.current = 'mission'
-
-    def on_enter(self, *args):
-        self.drone.streamon()
 
 
 class MissionScreen(Screen):
     def __init__(self, drone=None, **kwargs):
         super(MissionScreen, self).__init__(**kwargs)
         self.name = 'mission'
-        self.add_widget(Button(text='Return', on_release=self.stop_mission))
+        # self.add_widget(Button(text='Return', on_release=self.stop_mission))
         self.stick_data = [0.0] * 4
         self.drone = drone
         Clock.schedule_once(self._finish_init, 5)

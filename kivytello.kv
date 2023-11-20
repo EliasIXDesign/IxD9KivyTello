@@ -1,7 +1,8 @@
 #: import Joystick joystick
 
 <Button,ToggleButton>:
-    background_color: 0.0, 0.0, 0.0, 0.2
+    background_color: 0.5, 0.5, 0.5, 0.5  # Grey transparent background
+    color: 1, 1, 1, 1  # White text color
 
 <DragableJoystick>
 
@@ -10,36 +11,51 @@
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
+        spacing: 10  # Vertical spacing between buttons
+        padding: 30  # Padding around the BoxLayout
+
         Button:
             text: 'Mission 1'
-            on_release: root.start_mission
+            on_release: app.sm.current = 'mission'
+            height: "30dp"
         Button:
             text: 'Mission 2'
             on_release: root.start_mission
+            height: "30dp"
         Button:
             text: 'Mission 3'
             on_release: root.start_mission
+            height: "30dp"
         Button:
             text: 'Mission 4'
             on_release: root.start_mission
+            height: "30dp"
 
 <MissionScreen>:
     id: mission_screen
-    BoxLayout:
-        id: box_layout
-        orientation: 'vertical'
+    FloatLayout:
         CoverVideo:
             id: video
             drone: app.drone
             text: 'Video here'
+            size_hint: 1, 1  # Cover the entire FloatLayout
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}  # Center the video
+
         BoxLayout:
+            size_hint: 1, None
+            height: dp(100)  # Adjust the height as needed
             orientation: 'horizontal'
+            pos_hint: {'top': 1}  # Align to the top of the FloatLayout
             Joystick:
                 id: pad_left
             Joystick:
                 id: pad_right
+
         BoxLayout:
+            size_hint: 1, None
+            height: dp(50)  # Adjust the height as needed
             orientation: 'horizontal'
+            pos_hint: {'bottom': 1}  # Align to the bottom of the FloatLayout
             Button:
                 id: takeoff
                 text: 'Takeoff/Land'
@@ -52,6 +68,11 @@
             Button:
                 id: quit
                 text: 'Quit'
+
         Button:
             text: 'Return'
-            on_release: root.stop_mission
+            size_hint: None, None
+            size: dp(100), dp(50)  # Adjust the size as needed
+            pos_hint: {'center_x': 0.5, 'bottom': 0.1}  # Adjust the position as needed
+            on_release: app.root.sm.current = 'main'
+

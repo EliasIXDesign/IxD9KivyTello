@@ -257,6 +257,9 @@ class MissionScreen(Screen):
         # Set up Mission 1 buttons
         # For example, you can create ToggleButtons or other widgets here
 
+        button = MissionButton(text='Mission 1 Button', on_press=lambda instance: self.on_button_press(instance))
+        Clock.schedule_once(lambda dt: self.ids.box_layer.add_widget(button), 5)
+
         # Schedule the transition to the next set of buttons after 5 seconds
         Clock.schedule_once(self.setup_mission2, 5)
 
@@ -275,9 +278,42 @@ class MissionScreen(Screen):
         # Schedule the transition to the next set of buttons after 5 seconds
         Clock.schedule_once(self.finish_mission, 5)
 
+    # This function decides what the buttons will look like
+    class MissionButton(Button):
+        pass
+
+    def on_button_press(self, button_instance):
+        print(f'Button "{button_instance.text}" pressed')
+
+        # Add your logic based on the specific button pressed
+        if button_instance.text == 'Mission 1 Button':
+            # Add logic for Mission 1 button
+            print('Mission 1 Button pressed')
+            # Tell drone to take off
+            Clock.schedule_once(lambda dt: self.drone.takeoff(), 2)
+
+            Clock.schedule_once(lambda dt: self.start_overlayvideo(), 6)
+        elif button_instance.text == 'Mission 2 Button':
+            # Add logic for Mission 2 button
+            print('Mission 2 Button pressed')
+        # Add more elif clauses for additional buttons as needed
+
+        # Remove the button from the widget hierarchy
+        self.hide_button(button_instance)
+
+    def start_overlayvideo(self):
+        print('Starting video playback')
+        video_player = VideoPlayer(source='path_to_your_video_file.mp4', state='play', options={'allow_stretch': True})
+        self.add_widget(video_player)
+        Clock.schedule_once(lambda dt: self.stop_video(video_player), 5)
+
     def finish_mission(self, dt=None):
         # Perform any cleanup or finalization for the mission
         self.manager.current = 'main'
+
+    def hide_button(self, instance):
+        print("Button pressed, hiding...")
+        self.remove_widget(instance)
 
 
 if __name__ in ('__main__', '__android__'):

@@ -49,6 +49,7 @@
             size_hint: 1, 1  # Cover the entire FloatLayout
             pos_hint: {'center_x': 0.5, 'center_y': 0.5}  # Center the video
         BoxLayout:
+            id: button_layer
             size_hint: 1, 0.1
             height: dp(100)  # Adjust the height as needed
             orientation: 'horizontal'
@@ -58,7 +59,6 @@
             Joystick:
                 id: pad_right
         BoxLayout:
-            id: button_layer
             size_hint: 1, None
             height: dp(50)  # Adjust the height as needed
             orientation: 'horizontal'

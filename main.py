@@ -5,6 +5,7 @@ import cv2
 import numpy
 import time
 import av
+import keyboard
 from kivy.app import App
 from kivy.core.window import Window
 from joystick import Joystick
@@ -20,6 +21,8 @@ from djitellopy import Tello
 from threading import Thread
 from flask import Response, request
 from perfume import route, Perfume
+
+
 # IS_STREAM_ON = False
 
 
@@ -63,8 +66,8 @@ class FlaskApp(Perfume):
                            jpeg.tobytes() +
                            b'\r\n\r\n')
 
-                    if cap.get(cv2.CAP_PROP_FPS) < 1.0 / 30:
-                        time_base = 1.0 / 30
+                    if cap.get(cv2.CAP_PROP_FPS) < 1.0 / 60:
+                        time_base = 1.0 / 60
                     else:
                         time_base = 1.0 / cap.get(cv2.CAP_PROP_FPS)
 
@@ -88,12 +91,6 @@ def start_flask_app(flask_app=None):
     print("Starting Flask app...")
     flask_app.run(port=30660, debug=True,
                   use_reloader=False, threaded=True)
-
-
-IDX_ROLL = 0
-IDX_PITCH = 1
-IDX_THR = 2
-IDX_YAW = 3
 
 
 class CoverVideo(CoverBehavior, Video):
@@ -179,6 +176,18 @@ class MissionButton(Button):
     pass
 
 
+class GreenButton(Button):
+    pass
+
+
+class BlueButton(Button):
+    pass
+
+
+class RedButton(Button):
+    pass
+
+
 class MainScreen(Screen):
     def __init__(self, **kwargs):
         super(MainScreen, self).__init__(**kwargs)
@@ -190,6 +199,8 @@ class MainScreen(Screen):
 
 
 class MissionScreen(Screen):
+    state = 0  # 0 = not started, 1 = started, 2 = finished
+
     def __init__(self, drone=None, **kwargs):
         super(MissionScreen, self).__init__(**kwargs)
         self.mission_number = None
@@ -197,17 +208,19 @@ class MissionScreen(Screen):
         # self.add_widget(Button(text='Return', on_release=self.stop_mission))
         self.stick_data = [0.0] * 4
         self.drone = drone
-        Clock.schedule_once(self._finish_init, 5)
+        self.drone.enable_mission_pads()
+        self.drone.set_mission_pad_detection_direction(0)
+        Clock.schedule_once(self._finish_init, 2)
 
     def _finish_init(self, dt):
         print("available ids in MissionScreen", self.ids)
         self.video = self.ids.video
         # self.video.start_video()
-        print("available ids in Pad_left", self.ids)
-        self.ids.pad_left.bind(pad=self.on_pad_left)
-        print("available ids in PadRight", self.ids)
-        self.ids.pad_right.bind(pad=self.on_pad_right)
-        self.ids.takeoff.bind(state=self.on_state_takeoff)
+        # print("available ids in Pad_left", self.ids)
+        # self.ids.pad_left.bind(pad=self.on_pad_left)
+        # print("available ids in PadRight", self.ids)
+        # self.ids.pad_right.bind(pad=self.on_pad_right)
+        # self.ids.takeoff.bind(state=self.on_state_takeoff)
         self.ids.quit.bind(on_press=lambda x: self.stop())
 
     def on_enter(self, *args):
@@ -221,19 +234,19 @@ class MissionScreen(Screen):
             print('land')
             self.drone.land()
 
-    def on_pad_left(self, instance, value):
+    '''def on_pad_left(self, instance, value):
         x, y = value
         self.stick_data[IDX_YAW] = x
         self.stick_data[IDX_THR] = y
         self.drone.set_throttle(self.stick_data[IDX_THR])
-        self.drone.set_yaw(self.stick_data[IDX_YAW])
+        self.drone.set_yaw(self.stick_data[IDX_YAW])'''
 
-    def on_pad_right(self, instance, value):
+    '''def on_pad_right(self, instance, value):
         x, y = value
         self.stick_data[IDX_ROLL] = x
         self.stick_data[IDX_PITCH] = y
         self.drone.set_roll(self.stick_data[IDX_ROLL])
-        self.drone.set_pitch(self.stick_data[IDX_PITCH])
+        self.drone.set_pitch(self.stick_data[IDX_PITCH])'''
 
     def stop_mission(self, instance):
         self.manager.current = 'main'
@@ -258,19 +271,38 @@ class MissionScreen(Screen):
 
     def setup_mission1(self):
         print("Mission 1 triggered good")
-        # Set up Mission 1 buttons
-        # For example, you can create ToggleButtons or other widgets here
-
-        button = MissionButton(text='Launch Drone', on_press=lambda instance: self.on_button_press(instance))
-        Clock.schedule_once(lambda dt: self.ids.button_layer.add_widget(button), 5)
-
-        # Schedule the transition to the next set of buttons after 5 seconds
-        # Clock.schedule_once(self.setup_mission2, 50)
 
     def setup_mission2(self, dt=None):
         print("Mission 2 triggered good")
-        # Schedule the transition to the next set of buttons after 5 seconds
-        Clock.schedule_once(self.setup_mission3, 5)
+
+        button_takeoff = MissionButton(text='Go!')
+        button_takeoff.bind(on_press=self.on_button_press)
+
+        Clock.schedule_once(lambda dt: self.ids.button_layer.add_widget(button_takeoff), 3)
+
+    def spawn_dragon_button(self):
+        button_dragon = MissionButton(text='Dragon')
+        button_dragon.bind(on_press=self.on_button_press)
+        Clock.schedule_once(lambda dt: self.ids.button_layer.add_widget(button_dragon), 3)
+
+    def spawnthreecolorbuttons(self):
+        button_blue = BlueButton(text='Blue')
+        button_blue.bind(on_press=self.on_button_press)
+        button_red = RedButton
+        button_red.bind(on_press=self.on_button_press)
+        button_green = GreenButton
+        button_green.bind(on_press=self.on_button_press)
+
+        self.ids.button_layer.add_widget(button_blue)
+        self.ids.button_layer.add_widget(button_red)
+        self.ids.button_layer.add_widget(button_green)
+
+
+    def dragonfightvideo(self):
+        print('Starting video playback')
+        video_player = VideoPlayer(source='path_to_your_video_file.mp4', state='play', options={'allow_stretch': True})
+        self.add_widget(video_player)
+        Clock.schedule_once(lambda dt: self.stop_video(video_player), 5)
 
     def setup_mission3(self, dt=None):
         print("Mission 3 triggered good")
@@ -284,12 +316,13 @@ class MissionScreen(Screen):
 
     def on_button_press(self, button_instance):
         print(f'Button "{button_instance.text}" pressed good')
-        self.hide_button(button_instance)
+        self.ids.button_layer.remove_widget(button_instance)
+        print('removed button')
 
-        # Add your logic based on the specific button pressed
-        if button_instance.text == 'Mission 1 Button':
+        if button_instance.text == 'Launch Drone':
             # Add logic for Mission 1 button
             print('Mission 1 Button pressed')
+            print('Taking off.. command sent')
             # Tell drone to take off
             # Clock.schedule_once(lambda dt: self.drone.takeoff(), 2)
 
@@ -297,23 +330,49 @@ class MissionScreen(Screen):
         elif button_instance.text == 'Mission 2 Button':
             # Add logic for Mission 2 button
             print('Mission 2 Button pressed')
+
+        elif button_instance.text == 'Go!':
+            self.drone.takeoff()
+            MissionScreen.state = 1  # 1 = Drone is in the air
+            print(MissionScreen.state)
+            print('Change State sucess')
+            MissionScreen.spawn_dragon_button(self)
+
+        elif button_instance.text == 'Dragon':
+            pad = 1
+            print(pad)
+            c = 0
+
+            while True:
+                if pad == 3:
+                    print(pad)
+                    print("Pad 3 found")
+                    break
+                if keyboard.is_pressed("w"):
+                    break
+                if c < 8:
+                    self.drone.move_forward(20)
+                if c > 8:
+                    break
+                pad = self.drone.get_mission_pad_id()
+
+                c += 1
+                print(c)
+                time.sleep(0.2)
+
+            self.drone.land()
+            # call function spawnthreecolorbuttons
+        elif button_instance.text == 'Blue':
+            # Add logic for Mission 2 button
+            print('Mission 2 Button pressed')
+
         # Add more elif clauses for additional buttons as needed
 
         # Remove the button from the widget hierarchy
 
-    def start_overlayvideo(self):
-        print('Starting video playback')
-        video_player = VideoPlayer(source='path_to_your_video_file.mp4', state='play', options={'allow_stretch': True})
-        self.add_widget(video_player)
-        Clock.schedule_once(lambda dt: self.stop_video(video_player), 5)
-
     def finish_mission(self, dt=None):
         # Perform any cleanup or finalization for the mission
         self.manager.current = 'main'
-
-    def hide_button(self, instance):
-        print("Button pressed, hiding...")
-        self.remove_widget(instance)
 
 
 if __name__ in ('__main__', '__android__'):

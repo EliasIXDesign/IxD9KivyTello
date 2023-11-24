@@ -7,9 +7,21 @@
 <MissionButton>:
     background_color: 0.5, 0.5, 0.5, 0.5  # Grey transparent background
     color: 1, 1, 1, 1  # White text color
-    font_size: 18  # Set font size
+    font_size: 50  # Set font size
     size_hint: None, None
-    size: dp(100), dp(50)
+    size: dp(200), dp(150)
+    pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+
+<RedButton>:
+    background_color: 255, 0, 0, 1  # Grey transparent background
+    size_hint: None, None
+    size: dp(200), dp(150)
+    pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+
+<GreenButton>:
+    background_color: 0, 255, 0, 1  # Grey transparent background
+    size_hint: None, None
+    size: dp(200), dp(150)
     pos_hint: {'center_x': 0.5, 'center_y': 0.5}
 
 <DragableJoystick>
@@ -50,14 +62,9 @@
             pos_hint: {'center_x': 0.5, 'center_y': 0.5}  # Center the video
         BoxLayout:
             id: button_layer
-            size_hint: 1, 0.1
-            height: dp(100)  # Adjust the height as needed
+            size_hint: 1, 1  # Take up half the FloatLayout
             orientation: 'horizontal'
-            pos_hint: {'bottom': 1}  # Align to the top of the FloatLayout
-            Joystick:
-                id: pad_left
-            Joystick:
-                id: pad_right
+            pos_hint: {'center_x': 0.87, 'center_y': 0.5}  # Center the button_layer
         BoxLayout:
             size_hint: 1, None
             height: dp(50)  # Adjust the height as needed

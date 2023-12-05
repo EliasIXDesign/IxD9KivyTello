@@ -13,16 +13,22 @@
     pos_hint: {'center_x': 0.5, 'center_y': 0.5}
 
 <RedButton>:
-    background_color: 255, 0, 0, 1  # Grey transparent background
+    background_color: 1, 0, 0, 1  # Red transparent background
     size_hint: None, None
     size: dp(200), dp(150)
-    pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+    pos_hint: {'center_x': 0.25, 'center_y': 0.5}  # Adjusted center_x
 
 <GreenButton>:
-    background_color: 0, 255, 0, 1  # Grey transparent background
+    background_color: 0, 1, 0, 1  # Green transparent background
     size_hint: None, None
     size: dp(200), dp(150)
-    pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+    pos_hint: {'center_x': 0.5, 'center_y': 0.5}   # Kept center_x unchanged
+
+<BlueButton>:
+    background_color: 0, 0, 1, 1  # Blue transparent background
+    size_hint: None, None
+    size: dp(200), dp(150)
+    pos_hint: {'center_x': 0.75, 'center_y': 0.5}  # Adjusted center_x
 
 <DragableJoystick>
 
@@ -41,14 +47,6 @@
         Button:
             text: 'Mission 2'
             on_release: app.sm.current = 'mission'; app.mission_screen.start_mission(2)
-            height: "30dp"
-        Button:
-            text: 'Mission 3'
-            on_release: app.sm.current = 'mission'; app.mission_screen.start_mission(3)
-            height: "30dp"
-        Button:
-            text: 'Mission 4'
-            on_release: app.sm.current = 'mission'; app.mission_screen.start_mission(1)
             height: "30dp"
 
 <MissionScreen>:

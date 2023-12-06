@@ -6,6 +6,8 @@ import numpy
 import time
 import av
 import keyboard
+import threading
+import queue
 from kivy.app import App
 from kivy.core.window import Window
 from joystick import Joystick
@@ -21,10 +23,12 @@ from threading import Thread
 from flask import Response, request
 from perfume import route, Perfume
 from colorama import Fore, Back, Style
-from djitellopy import Tello
+from djitellopy import tello
+from ffpyplayer.player import MediaPlayer
 
-# IS_STREAM_ON = False
+IS_STREAM_ON = False
 color_state = 'Blue'
+# Builder.load_file('kivytello.kv')
 
 
 class FlaskApp(Perfume):
@@ -34,45 +38,23 @@ class FlaskApp(Perfume):
 
     @route('/video_feed')
     def video_feed(self):
-        self.drone.streamon()
         print("Received video feed request from:", request.remote_addr)
 
         def generate():
+            frame_counter = 0
+            n = 2 #  defines numbers of frames to skip
             try:
-
-                retry = 3
-                cap = self.drone.get_video_capture()
-                while cap is None and 0 < retry:
-                    retry -= 1
-                    print('retry...')
-                    time.sleep(1)
-                    cap = self.drone.get_video_capture()
-
-                frame_skip = 300
                 while True:
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
+                    img = self.drone.get_frame_read().frame
+                    img = cv2.resize(img, (360, 240))
+                    _, jpeg = cv2.imencode('.jpg', img)
 
-                    if 0 < frame_skip:
-                        frame_skip -= 1
-                        continue
-
-                    start_time = time.time()
-                    color = frame
-                    # color = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                    ret, jpeg = cv2.imencode('.jpg', color)
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' +
-                           jpeg.tobytes() +
-                           b'\r\n\r\n')
-
-                    if cap.get(cv2.CAP_PROP_FPS) < 1.0 / 30:
-                        time_base = 1.0 / 30
-                    else:
-                        time_base = 1.0 / cap.get(cv2.CAP_PROP_FPS)
-
-                    frame_skip = int((time.time() - start_time) / time_base)
+                    if frame_counter % n == 0:  # Only yield every nth frame
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' +
+                               jpeg.tobytes() +
+                               b'\r\n\r\n')
+                    frame_counter += 1
 
             except Exception as ex:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -80,7 +62,6 @@ class FlaskApp(Perfume):
                 print(ex)
 
             finally:
-                # self.drone.streamoff()
                 self.drone.end()
                 App.get_running_app().stop()
 
@@ -95,18 +76,6 @@ def start_flask_app(flask_app=None):
 
 
 class CoverVideo(CoverBehavior, Video):
-    def __init__(self, drone=None, **kwargs):
-        super(CoverVideo, self).__init__(**kwargs)
-        self.drone = drone
-
-    def start_video(self):
-        # start the video feed here
-        self.source = 'http://127.0.0.1:30660/video_feed'
-        print(f'self.source: {self.source}')
-        self.options = {'eos': 'loop'}
-        self.state = 'play'
-        print("Video started")
-
     def _on_video_frame(self, *largs):
         video = self._video
         if not video:
@@ -136,7 +105,7 @@ class KivyTelloRoot(FloatLayout):
         self.flask_app = flask_app
         self.sm = ScreenManager()
         self.sm.add_widget(MainScreen())
-        self.sm.add_widget(MissionScreen(drone=self.drone))
+        # self.sm.add_widget(MissionScreen(drone=self.drone))
         self.add_widget(self.sm)
 
     def stop(self):
@@ -146,13 +115,16 @@ class KivyTelloRoot(FloatLayout):
 
 class KivyTelloApp(App):
     def __init__(self, drone=None, flask_app=None, **kwargs):
+        global IS_STREAM_ON
         super(KivyTelloApp, self).__init__(**kwargs)
         self.sm = None
         self.main_screen = None
         self.mission_screen = None
         self.drone = drone
         self.flask_app = flask_app
-        Builder.load_file('kivytello.kv')
+        if not IS_STREAM_ON:
+            self.drone.streamon()
+            IS_STREAM_ON = True
 
     def build_config(self, config):
         return KivyTelloRoot(drone=self.drone, flask_app=self.flask_app)
@@ -175,7 +147,7 @@ class KivyTelloApp(App):
         Window.close()
 
 
-class MissionButton(Button):  # Every button that spawns in the middle of the screeon with text
+class MissionButton(Button):  # MissionButton styling is defined in the.kv file
     pass
 
 
@@ -203,8 +175,11 @@ class MainScreen(Screen):
 
 class MissionScreen(Screen):
     state = 0  # 0 = not started, 1 = drone in air, 2 = drone moving, 3 = hovering, 4 = landed
+    # is_initialized = False
 
     def __init__(self, drone=None, **kwargs):
+        '''if MissionScreen.is_initialized:
+            return'''
         super(MissionScreen, self).__init__(**kwargs)
         self.mission_number = None
         self.name = 'mission'
@@ -217,43 +192,6 @@ class MissionScreen(Screen):
         self.green_button = None
         self.red_button = None
         self.drone_finished = False
-        Clock.schedule_once(self._finish_init, 2)
-
-    def _finish_init(self, dt):
-        print("available ids in MissionScreen", self.ids)
-        self.video = self.ids.video
-        # self.video.start_video()
-        # print("available ids in Pad_left", self.ids)
-        # self.ids.pad_left.bind(pad=self.on_pad_left)
-        # print("available ids in PadRight", self.ids)
-        # self.ids.pad_right.bind(pad=self.on_pad_right)
-        # self.ids.takeoff.bind(state=self.on_state_takeoff)
-        self.ids.quit.bind(on_press=lambda x: self.stop())
-
-    def on_enter(self, *args):
-        self.video.start_video()
-
-    def on_state_takeoff(self, instance, value):
-        if value == 'down':
-            print('take off')
-            self.drone.takeoff()
-        else:
-            print('land')
-            self.drone.land()
-
-    '''def on_pad_left(self, instance, value):
-        x, y = value
-        self.stick_data[IDX_YAW] = x
-        self.stick_data[IDX_THR] = y
-        self.drone.set_throttle(self.stick_data[IDX_THR])
-        self.drone.set_yaw(self.stick_data[IDX_YAW])'''
-
-    '''def on_pad_right(self, instance, value):
-        x, y = value
-        self.stick_data[IDX_ROLL] = x
-        self.stick_data[IDX_PITCH] = y
-        self.drone.set_roll(self.stick_data[IDX_ROLL])
-        self.drone.set_pitch(self.stick_data[IDX_PITCH])'''
 
     def stop_mission(self, instance):
         self.manager.current = 'main'
@@ -330,7 +268,7 @@ class MissionScreen(Screen):
     def land_button(self):
         print('land button pressed')
         land_button = MissionButton(text='LAND')
-        batman_button.brind(on_press=self.on_button_press)
+        land_button.brind(on_press=self.on_button_press)
 
         self.ids.button_layer.add_widget(land_button)
 
@@ -357,7 +295,7 @@ class MissionScreen(Screen):
             print('removed button ', button_instance.text)
 
             self.drone.takeoff()
-            self.drone.move_down(20)  # go 20 cm down
+            #  self.drone.move_down(20)  # go 20 cm down
 
             MissionScreen.state = 1  # 1 = Drone is in the air
             print(MissionScreen.state, 'Change State success')
@@ -480,7 +418,7 @@ class MissionScreen(Screen):
 
 
 if __name__ in ('__main__', '__android__'):
-    drone = Tello()
+    drone = tello.Tello()
     try:
         drone.connect()
         # drone.wait_for_connection(60.0)

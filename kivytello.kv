@@ -51,32 +51,16 @@
 
 <MissionScreen>:
     id: mission_screen
-    FloatLayout:
-        CoverVideo:
-            id: video
-            drone: app.drone
-            text: 'Video here'
-            size_hint: 1, 1  # Cover the entire FloatLayout
-            pos_hint: {'center_x': 0.5, 'center_y': 0.5}  # Center the video
+    # CoverVideo:
+    #    source: 'http://127.0.0.1:30660/video_feed'
+    #    state: 'play'
+        #allow_stretch: True
+    #    options: {'eos': 'loop'}
+    BoxLayout:
+        orientation: 'vertical'
         BoxLayout:
             id: button_layer
-            size_hint: 1, 1  # Take up half the FloatLayout
+            size_hint: 1, 0.5
             orientation: 'horizontal'
-            pos_hint: {'center_x': 0.87, 'center_y': 0.5}  # Center the button_layer
-        BoxLayout:
-            size_hint: 1, None
-            height: dp(50)  # Adjust the height as needed
-            orientation: 'horizontal'
-            pos_hint: {'top': 1}  # Align to the bottom of the FloatLayout
-            Button:
-                id: return
-                text: 'Return'
-                on_release: app.sm.current = 'main'
-            ToggleButton:
-                id: takeoff
-                text: 'TAKEOFF' if self.state == 'normal' else 'LAND'
-                on_release: root.takeoff()  # Toggle the drone's takeoff/land
-            Button:
-                id: quit
-                text: 'Quit'
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}  # Center the button_layer
 

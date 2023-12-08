@@ -7,6 +7,7 @@ import time
 import av
 import keyboard
 import threading
+import numpy as np
 from queue import Queue
 from kivy.app import App
 from kivy.core.window import Window
@@ -28,12 +29,33 @@ from kivy.properties import ObjectProperty
 IS_STREAM_ON = False
 color_state = 'Blue'
 # Builder.load_file('kivytello.kv')
-'''
-try:
-    while True:
-        img = self.drone.get_frame_read().frame
-        img = cv2.resize(img, (360, 240))
-        _, jpeg = cv2.imencode('.jpg', img)'''
+
+class VideoStreamThread(Thread):
+    def __init__(self, drone):
+        super(VideoStreamThread, self).__init__()
+        self.drone = drone
+        self.stopped = False
+        #  print("XXXXXXXX")
+
+    def run(self):
+        try:
+            while not self.stopped:
+                img = self.drone.get_frame_read().frame
+                img = cv2.resize(img, (960, 720), interpolation=cv2.INTER_LINEAR)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                img = cv2.addWeighted(img, 1, np.zeros_like(img), 0, 0)
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                img = cv2.addWeighted(img, 1.5, np.zeros_like(img), 0, 0)
+                cv2.imshow("VideoFrame", img)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+        except Exception as e:
+            print("Failed to create video stream")
+        finally:
+            cv2.destroyAllWindows()
+            self.drone.streamoff()
+            self.drone.end()
 
 
 class DroneThread(Thread):
@@ -41,6 +63,7 @@ class DroneThread(Thread):
         super(DroneThread, self).__init__()
         self.drone = drone
         self.command_queue = Queue()
+        self.result_dict = {}
         self.start()
 
     def run(self):
@@ -48,14 +71,19 @@ class DroneThread(Thread):
             command, args = self.command_queue.get()
             if command == 'end':
                 break
-            getattr(self.drone, command)(*args)
+            self.result_dict[command] = getattr(self.drone, command)(*args)
         self.drone.end()
 
     def add_command(self, command, *args):
         self.command_queue.put((command, args))
+        while command not in self.result_dict:
+            time.sleep(0.01)  # Wait for the command to be executed
+        result = self.result_dict.pop(command)
+        return result
+
 
 class KivyTelloRoot(FloatLayout):
-    def __init__(self, drone=None, drone_thread=None,  **kwargs):
+    def __init__(self, drone=None, drone_thread=None, **kwargs):
         super(KivyTelloRoot, self).__init__(**kwargs)
         self.drone = drone
         self.drone_thread = drone_thread
@@ -111,6 +139,10 @@ class GreenButton(Button):
     pass
 
 
+class YellowButton(Button):
+    pass
+
+
 class BlueButton(Button):
     pass
 
@@ -139,6 +171,10 @@ class MissionScreen(Screen):
         '''if MissionScreen.is_initialized:
             return'''
         super(MissionScreen, self).__init__(**kwargs)
+        self.yellow_button = None
+        self.success_dragon_killed_button = None
+        self.spawn_dragon_button = None
+        self.takeoff_button = None
         self.mission_number = None
         self.name = 'mission'
         # self.add_widget(Button(text='Return', on_release=self.stop_mission))
@@ -172,37 +208,66 @@ class MissionScreen(Screen):
 
     def setup_mission1(self):
         print("Mission 1 triggered good")
-        self.takeoff_button('Takeoff')
+        self.takeoff_button_func('Takeoff')
 
     def setup_mission2(self, dt=None):
         print("Mission 2 triggered good")
-        self.takeoff_button('Go!')  # 1
+        self.takeoff_button_func('Go!')  # 1
 
-    def takeoff_button(self, text):
+    def takeoff_button_func(self, text):
         button_takeoff = MissionButton(text=text)
         button_takeoff.bind(on_press=self.on_button_press)
 
+        self.takeoff_button = button_takeoff
+
+        keyboard.add_hotkey('a', self.on_button_press, args=(button_takeoff,))
+
         Clock.schedule_once(lambda dt: self.ids.button_layer.add_widget(button_takeoff), 3)
 
-    def spawn_dragon_button(self):  # 2
+    def spawn_dragon_button_func(self):  # 2
         button_dragon = MissionButton(text='Dragon')
         button_dragon.bind(on_press=self.on_button_press)
+
+        self.spawn_dragon_button = button_dragon
+
+        keyboard.add_hotkey('s', self.on_button_press, args=(button_dragon,))
+
         Clock.schedule_once(lambda dt: self.ids.button_layer.add_widget(button_dragon), 3)
 
-    def spawn_three_color_buttons(self):
+    def spawn_blue_button(self):
         button_blue = BlueButton(text='Blue')
         button_blue.bind(on_press=self.on_button_press)
-        button_red = RedButton(text='Red')
-        button_red.bind(on_press=self.on_button_press)
-        button_green = GreenButton(text='Green')
-        button_green.bind(on_press=self.on_button_press)
-
         self.blue_button = button_blue
-        self.green_button = button_green
-        self.red_button = button_red
+
+        keyboard.add_hotkey('d', self.on_button_press, args=(button_blue,))
 
         self.ids.button_layer.add_widget(button_blue)
+
+    def spawn_yellow_button(self):
+        button_yellow = YellowButton(text='Yellow')
+        button_yellow.bind(on_press=self.on_button_press)
+        self.yellow_button = button_yellow
+
+        keyboard.add_hotkey('f', self.on_button_press, args=(button_yellow,))
+
+        self.ids.button_layer.add_widget(button_yellow)
+
+    def spawn_red_button(self):
+        button_red = RedButton(text='Red')
+        button_red.bind(on_press=self.on_button_press)
+        self.red_button = button_red
+
         self.ids.button_layer.add_widget(button_red)
+
+        keyboard.add_hotkey('g', self.on_button_press, args=(button_red,))
+
+    def spawn_green_button(self):
+        button_green = GreenButton(text='Green')
+        button_green.bind(on_press=self.on_button_press)
+        self.green_button = button_green
+
+        keyboard.add_hotkey('f', self.on_button_press, args=(button_green,))
+
         self.ids.button_layer.add_widget(button_green)
 
     def dragon_fight_video(self):
@@ -216,6 +281,10 @@ class MissionScreen(Screen):
         success_button = MissionButton(text='Dragon defeated!')
         success_button.bind(on_press=self.on_button_press)
 
+        self.success_dragon_killed_button = success_button
+
+        keyboard.add_hotkey('h', self.on_button_press, args=(success_button,))
+
         Clock.schedule_once(lambda dt: self.ids.button_layer.add_widget(success_button), 2)
 
     def go_2_batman_button(self):
@@ -228,7 +297,7 @@ class MissionScreen(Screen):
     def land_button(self):
         print('land button pressed')
         land_button = MissionButton(text='LAND')
-        land_button.brind(on_press=self.on_button_press)
+        land_button.bind(on_press=self.on_button_press)
 
         self.ids.button_layer.add_widget(land_button)
 
@@ -252,7 +321,8 @@ class MissionScreen(Screen):
 
         elif button_instance.text == 'Go!':
 
-            self.ids.button_layer.remove_widget(button_instance)
+            Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
+
             print('removed button ', button_instance.text)
             self.go_removed = True
 
@@ -266,29 +336,44 @@ class MissionScreen(Screen):
             MissionScreen.state = 1  # 1 = Drone is in the air
             print(MissionScreen.state, 'Change State success')
 
-            MissionScreen.spawn_dragon_button(self)
+            Clock.schedule_once(lambda dt: self.spawn_dragon_button_func(), 0)
+            # MissionScreen.spawn_dragon_button(self)
 
         elif button_instance.text == 'Dragon':
-            self.ids.button_layer.remove_widget(button_instance)
+            Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
             print('removed button ', button_instance.text)
 
-            self.drone_moving(3)
+            self.drone_moving(2)
 
             while not self.drone_finished:
                 pass
             self.drone_finished = False
 
-            Clock.schedule_once(lambda dt: self.spawn_three_color_buttons(), 2)
+            Clock.schedule_once(lambda dt: self.spawn_blue_button(), 5)
 
         elif button_instance.text == 'Blue':
             # Add logic for Mission 2 button
             print('Blue Button pressed')
             if color_state == 'Blue':
                 print(Back.BLUE + 'Blue True')
-                color_state = 'Red'
+                color_state = 'Yellow'
                 print(color_state)
+                Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
                 # Send command to LED to turn RED
                 # minus one health bar
+                Clock.schedule_once(lambda dt: self.spawn_yellow_button(), 5)
+
+        elif button_instance.text == 'Yellow':
+            # Add logic for Mission 2 button
+            print('Yellow Button pressed')
+            if color_state == 'Yellow':
+                print(Back.YELLOW + 'Yellow True')
+                color_state = 'Red'
+                print(color_state)
+                Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
+                # Send command to LED to turn RED
+                # minus one health bar
+                Clock.schedule_once(lambda dt: self.spawn_red_button(), 5)
 
         elif button_instance.text == 'Red':
             # Add logic for Mission 2 button
@@ -297,8 +382,10 @@ class MissionScreen(Screen):
                 print(Back.RED + 'Red True')
                 color_state = 'Green'
                 print(color_state)
+                Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
                 # Send command to LED to turn Green
                 # minus one health bar
+                Clock.schedule_once(lambda dt: self.spawn_green_button(), 5)
 
         elif button_instance.text == 'Green':
             # Add logic for Mission 2 button
@@ -309,12 +396,12 @@ class MissionScreen(Screen):
                 # minus last health bar
                 # turn all LED's on
 
-                self.remove_buttons()  # remove all color buttons
+                Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
                 Clock.schedule_once(lambda dt: self.success_dragon_killed_button(), 3)
 
         elif button_instance.text == 'Dragon defeated!':
             print(button_instance.text, ' button pressed')
-            self.ids.button_layer.remove_widget(button_instance)
+            Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
             print('removed button ', button_instance.text)
             self.drone_thread.add_command("land")
 
@@ -322,26 +409,26 @@ class MissionScreen(Screen):
 
         elif button_instance.text == 'Rescue Batman!':
             print(button_instance.text, ' button pressed')
-            self.ids.button_layer.remove_widget(button_instance)
+            Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
             print('removed button ', button_instance.text)
 
             self.drone_thread.add_command("takeoff")
 
-            self.drone_moving(4)
+            self.drone_moving(3)
 
             while not self.drone_finished:
                 pass
             self.drone_finished = False
 
-            lock.schedule_once(lambda dt: self.success_dragon_killed_button(), 3)
+            Clock.schedule_once(lambda dt: self.land_button(), 3)
 
         elif button_instance.text == 'LAND':
             self.drone_thread.add_command("land")
             print(button_instance.text, ' button pressed')
-            self.ids.button_layer.remove_widget(button_instance)
+            Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
             print('removed button ', button_instance.text)
 
-            lock.schedule_once(lambda dt: self.finish_mission(), 60)
+            Clock.schedule_once(lambda dt: self.finish_mission(), 60)
 
     def drone_moving(self, pad_end):
 
@@ -351,34 +438,29 @@ class MissionScreen(Screen):
 
         while True:
             if pad == pad_end:
-                print("Pad 3 found")
+                print("Pad 2 found")
                 break
             if keyboard.is_pressed("w"):
                 #  self.drone.land()
                 self.drone_thread.add_command("land")
-            if c < 8:
+            if c < 3:
                 self.drone_thread.add_command("move_forward", 20)
+            else:
+                break
 
-            if c > 8:
-                self.drone_thread.add_command("land")
             #  pad = self.drone.get_mission_pad_id()
             pad = self.drone_thread.add_command("get_mission_pad_id")
+            print('current pad: ', pad)
+            time.sleep(2)  # Can be adjusted lower
+
 
             c += 1  # increments count
             print('current iteration (c) = ', c)  # prints current count state
-            time.sleep(0.2)  # Can be adjusted lower
 
         #  Once While loop breaks/is done
         # self.drone.move_forward(20)  # Move directly over Mission pad
+        #  self.drone_thread.add_command("land")
         self.drone_finished = True
-
-    def remove_buttons(self):
-        if self.blue_button in self.ids.button_layer.children:
-            self.ids.button_layer.remove_widget(self.blue_button)
-        if self.green_button in self.ids.button_layer.children:
-            self.ids.button_layer.remove_widget(self.green_button)
-        if self.red_button in self.ids.button_layer.children:
-            self.ids.button_layer.remove_widget(self.red_button)
 
     def finish_mission(self, dt=None):
         # Perform any cleanup or finalization for the mission
@@ -388,6 +470,10 @@ class MissionScreen(Screen):
 if __name__ in ('__main__', '__android__'):
     drone = tello.Tello()
     drone_thread = DroneThread(drone)
+
+    video_thread = VideoStreamThread(drone)
+    video_thread.start()
+
     try:
         drone.connect()
         # drone.wait_for_connection(60.0)

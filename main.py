@@ -92,10 +92,12 @@ class DroneThread(Thread):
     def hover_movement(self):
         while self.drone.is_flying and self.hover:
             self.add_command('move_down', 20)
-            time.sleep(10)
+            print('move down 20')
+            time.sleep(5)
             if self.drone.is_flying and self.hover:
-                self.add_command('move_down', 20)
-                time.sleep(10)
+                self.add_command('move_up', 20)
+                print('move up 20')
+                time.sleep(5)
 
 
 class KivyTelloRoot(FloatLayout):
@@ -312,7 +314,7 @@ class MissionScreen(Screen):
 
         self.go_2_batman_button = batman_button
 
-        keyboard.add_hotkey('k', self.on_button_press, args=(success_button,))
+        keyboard.add_hotkey('k', self.on_button_press, args=(batman_button,))
 
         self.ids.button_layer.add_widget(batman_button)
 
@@ -323,7 +325,7 @@ class MissionScreen(Screen):
 
         self.land_button = land_button
 
-        keyboard.add_hotkey('l', self.on_button_press, args=(success_button,))
+        keyboard.add_hotkey('l', self.on_button_press, args=(land_button,))
 
         self.ids.button_layer.add_widget(land_button)
 

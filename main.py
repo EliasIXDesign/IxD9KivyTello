@@ -409,7 +409,7 @@ class MissionScreen(Screen):
             if color_state == 'Green':
                 print(Back.GREEN + 'Green True')
 
-                send_socket_command("red")
+                send_socket_command("green")
 
                 color_state = 'Red'
 

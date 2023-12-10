@@ -50,10 +50,8 @@ class VideoStreamThread(Thread):
         try:
             while not self.stopped:
                 img = self.drone.get_frame_read().frame
-                img = cv2.resize(img, (960, 720), interpolation=cv2.INTER_LINEAR)
+                img = cv2.resize(img, (1920, 1080), interpolation=cv2.INTER_LINEAR)
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = cv2.addWeighted(img, 1, np.zeros_like(img), 0, 0)
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
                 img = cv2.addWeighted(img, 1.5, np.zeros_like(img), 0, 0)
                 cv2.imshow("VideoFrame", img)
                 key = cv2.waitKey(1) & 0xFF
@@ -73,6 +71,7 @@ class DroneThread(Thread):
         self.drone = drone
         self.command_queue = Queue()
         self.result_dict = {}
+        self.hover = False
         self.start()
 
     def run(self):
@@ -91,11 +90,12 @@ class DroneThread(Thread):
         return result
 
     def hover_movement(self):
-        while self.drone.is_flying:
+        while self.drone.is_flying and self.hover:
             self.add_command('move_down', 20)
             time.sleep(10)
-            self.add_command('move_down', 20)
-            time.sleep(10)
+            if self.drone.is_flying and self.hover:
+                self.add_command('move_down', 20)
+                time.sleep(10)
 
 
 class KivyTelloRoot(FloatLayout):
@@ -178,7 +178,6 @@ class MainScreen(Screen):
 
 
 class MissionScreen(Screen):
-    state = 0  # 0 = not started, 1 = drone in air, 2 = drone moving, 3 = hovering, 4 = landed
     drone_thread = ObjectProperty(None)
 
     # is_initialized = False
@@ -271,15 +270,6 @@ class MissionScreen(Screen):
 
         self.ids.button_layer.add_widget(button_yellow)
 
-    def spawn_red_button(self):
-        button_red = RedButton(text='Red')
-        button_red.bind(on_press=self.on_button_press)
-        self.red_button = button_red
-
-        self.ids.button_layer.add_widget(button_red)
-
-        keyboard.add_hotkey('h', self.on_button_press, args=(button_red,))
-
     def spawn_green_button(self):
         button_green = GreenButton(text='Green')
         button_green.bind(on_press=self.on_button_press)
@@ -288,6 +278,15 @@ class MissionScreen(Screen):
         keyboard.add_hotkey('g', self.on_button_press, args=(button_green,))
 
         self.ids.button_layer.add_widget(button_green)
+
+    def spawn_red_button(self):
+        button_red = RedButton(text='Red')
+        button_red.bind(on_press=self.on_button_press)
+        self.red_button = button_red
+
+        keyboard.add_hotkey('h', self.on_button_press, args=(button_red,))
+
+        self.ids.button_layer.add_widget(button_red)
 
     def dragon_fight_video(self):
         print('Starting video playback')
@@ -351,17 +350,11 @@ class MissionScreen(Screen):
             Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
 
             print('removed button ', button_instance.text)
-            self.go_removed = True
-
-            while not self.go_removed:
-                pass
-            self.go_removed = False
 
             self.drone_thread.add_command("takeoff")
             #  self.drone.move_down(20)  # go 20 cm down
 
-            MissionScreen.state = 1  # 1 = Drone is in the air
-            print(MissionScreen.state, 'Change State success')
+            drone_thread.hover = False
 
             Clock.schedule_once(lambda dt: self.spawn_dragon_button_func(), 0)
             # MissionScreen.spawn_dragon_button(self)
@@ -369,6 +362,8 @@ class MissionScreen(Screen):
         elif button_instance.text == 'Dragon':
             Clock.schedule_once(lambda dt: self.ids.button_layer.remove_widget(button_instance), 0)
             print('removed button ', button_instance.text)
+
+            drone_thread.hover = False
 
             send_socket_command("dragon")  # Activates health bar of dragon
 
@@ -429,6 +424,8 @@ class MissionScreen(Screen):
 
                 send_socket_command("red")
 
+                drone_thread.hover = False
+
                 #  color_state = 'Blue'
 
                 #  print(color_state)
@@ -457,6 +454,8 @@ class MissionScreen(Screen):
                 pass
             self.drone_finished = False
 
+            drone_thread.hover = True
+
             Clock.schedule_once(lambda dt: self.land_button(), 3)
 
         elif button_instance.text == 'LAND':
@@ -478,9 +477,8 @@ class MissionScreen(Screen):
                 print("Pad 2 found")
                 break
             if keyboard.is_pressed("w"):
-                #  self.drone.land()
-                self.drone_thread.add_command("land")
-            if c < 6:
+                break
+            if c < 3:
                 self.drone_thread.add_command("move_forward", 20)
             else:
                 break
@@ -509,6 +507,9 @@ if __name__ in ('__main__', '__android__'):
 
     video_thread = VideoStreamThread(drone)
     video_thread.start()
+
+    hover_thread = Thread(target=drone_thread.hover_movement)
+    hover_thread.start()
 
     try:
         drone.connect()
